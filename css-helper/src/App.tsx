@@ -1,35 +1,99 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useState, useEffect } from 'react';
 
-function App() {
-  const [count, setCount] = useState(0)
+const GitHubLogin = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userData, setUserData] = useState<any>(null);
+
+  useEffect(() => {
+    const checkGitHubAuth = async () => {
+      try {
+        // Check if there's an active GitHub session
+        const response = await fetch('https://api.github.com/user', {
+          headers: {
+            Accept: 'application/vnd.github.v3+json',
+            // The browser will automatically include the session cookie
+          },
+          credentials: 'include'
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setUserData(data);
+          setIsAuthenticated(true);
+        }
+      } catch (error) {
+        console.error('Failed to check GitHub authentication:', error);
+        setIsAuthenticated(false);
+        setUserData(null);
+      }
+    };
+
+    checkGitHubAuth();
+
+    // Set up an interval to periodically check auth status
+    const authCheckInterval = setInterval(checkGitHubAuth, 5 * 60 * 1000); // Check every 5 minutes
+
+    // Listen for visibility changes to recheck auth when tab becomes visible
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkGitHubAuth();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Cleanup
+    return () => {
+      clearInterval(authCheckInterval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  const handleLogin = () => {
+    window.location.href = 'https://github.com/login';
+  };
+
+  const handleLogout = async () => {
+    try {
+      // Send logout request to GitHub
+      await fetch('https://github.com/logout', {
+        method: 'POST',
+        credentials: 'include'
+      });
+      
+      setIsAuthenticated(false);
+      setUserData(null);
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
+    <div className="flex flex-col items-center gap-4">
+      {!isAuthenticated ? (
+        <button
+          onClick={handleLogin}
+          className="flex items-center gap-2 bg-gray-900 hover:bg-gray-700"
+        >
+          Sign in with GitHub
         </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
-}
+      ) : (
+        <div className="flex flex-col items-center gap-4">
+          <div className="text-center">
+            <p className="text-lg font-medium">Welcome, {userData?.login}!</p>
+            <p className="text-sm text-gray-500">
+              {userData?.public_repos} public repositories
+            </p>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2"
+          >
+            Sign Out
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
 
-export default App
+export default GitHubLogin;
